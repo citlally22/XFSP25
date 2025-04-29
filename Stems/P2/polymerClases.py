@@ -378,7 +378,6 @@ class macroMolecule:
         self.N = max(1, round(np.random.normal(targetN, std)))  # Ensure N is at least 1
         self.MW = self.N * merWt + 2  # Total molecular weight, +2 for extra hydrogens at ends
         self.segmentLength = segmentLength  # Segment length in meters (4.84 nm = 4.84e-9 m)
-        print(f"Initialized segmentLength: {self.segmentLength} m")  # Debug print
         self.centerOfMass = Position()  # Initialize center of mass
         self.radiusOfGyration = 0  # Initialize radius of gyration
         self.radiusOfInfluence = 0  # Not used in this problem
@@ -396,7 +395,6 @@ class macroMolecule:
         4. Repeat steps 2 & 3 for remaining links.
         5. Calculate center of mass, radius of gyration, and end-to-end distance.
         """
-        print(f"Using segmentLength in simulation: {self.segmentLength} m")  # Debug print
         # Step 1: Pin the initial mer to (0,0,0)
         lastPosition = Position(x=0, y=0, z=0)
         self.mers = []

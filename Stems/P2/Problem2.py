@@ -31,9 +31,7 @@ class PolymerSimulation:
         for _ in range(self.num_molecules):
             # Create a macromolecule with the target degree of polymerization
             # Segment length is set to 4.84 nm to match the example end-to-end distance of 0.153 μm
-            segment_length = 4.84e-9  # Explicitly define here
-            print(f"Creating macroMolecule with segmentLength: {segment_length} m")  # Debug print
-            mol = macroMolecule(targetN=self.targetN, segmentLength=segment_length, merWt=14)
+            mol = macroMolecule(targetN=self.targetN, segmentLength=4.84e-9, merWt=14)
             # Run the freely jointed chain simulation to build the molecule
             mol.freelyJointedChainModel()
             self.molecules.append(mol)
