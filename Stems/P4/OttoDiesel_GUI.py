@@ -194,10 +194,9 @@ class Ui_Form(object):
         self.gridLayout.addWidget(self.btn_Calculate, 4, 2, 1, 2)
         self.cmb_OttoDiesel = QtWidgets.QComboBox(self.gb_Input)
         self.cmb_OttoDiesel.setObjectName("cmb_OttoDiesel")
-        self.cmb_OttoDiesel.addItem("Otto cycle")
-        self.cmb_OttoDiesel.addItem("Diesel cycle")
-        self.cmb_OttoDiesel.addItem("Dual cycle")  # ✅ Add this line
-
+        self.cmb_OttoDiesel.addItem("Otto")
+        self.cmb_OttoDiesel.addItem("Diesel")
+        self.cmb_OttoDiesel.addItem("Dual")
         self.gridLayout.addWidget(self.cmb_OttoDiesel, 0, 2, 1, 2)
         self.main_VerticalLayout.addWidget(self.gb_Input)
         self.gb_Output = QtWidgets.QGroupBox(Form)

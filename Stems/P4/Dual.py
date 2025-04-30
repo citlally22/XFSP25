@@ -1,63 +1,59 @@
-from Air import *
-import numpy as np
-from PyQt5 import QtWidgets as qtw
-import matplotlib.pyplot as plt
+# Dual.py
 
-# ---------------------
-# Dual Cycle Model (no .copy())
-# ---------------------
-class dualCycleModel():
-    def __init__(self, p_initial=1E5, v_cylinder=3E-3, t_initial=300, pressure_ratio=1.5, cutoff=1.2, ratio=18.0, name='Air Standard Dual Cycle'):
+# region imports
+from Air import *
+from matplotlib import pyplot as plt
+from PyQt5 import QtWidgets as qtw
+import numpy as np
+# endregion
+
+# region Model
+class dualCycleModel:
+    def __init__(self, p_initial=1e5, v_cylinder=3e-3, t_initial=300, pressure_ratio=1.5, cutoff=1.2, ratio=18.0, name='Air Standard Dual Cycle'):
         self.units = units()
-        self.units.SI = False
+        self.units.SI = True
         self.air = air()
-        self.air.set(P=p_initial, T=t_initial)
+
         self.p_initial = p_initial
         self.T_initial = t_initial
-
-        self.P_ratio = min(max(1.1, pressure_ratio), 5.0)
-        self.Cutoff = min(max(1.1, cutoff), 4.0)
-        self.Ratio = min(max(4.0, ratio), 25.0)
+        self.PressureRatio = pressure_ratio  # P3/P2
+        self.Cutoff = cutoff                # rc = V4/V3
+        self.Ratio = ratio                  # r = V1/V2
         self.V_Cylinder = v_cylinder
 
+        self.air.set(P=self.p_initial, T=self.T_initial)
         self.air.n = self.V_Cylinder / self.air.State.v
         self.air.m = self.air.n * self.air.MW
 
-        self.State1 = self.air.set(P=self.p_initial, T=self.T_initial)
-        self.State1.name = "State 1"
+        # Set thermodynamic states
+        self.State1 = self.air.set(P=self.p_initial, T=self.T_initial, name="State 1 - BDC")
+        self.State2 = self.air.set(v=self.State1.v / self.Ratio, s=self.State1.s, name="State 2 - TDC")
 
-        self.State2 = self.air.set(v=self.State1.v / self.Ratio, s=self.State1.s)
-        self.State2.name = "State 2"
+        P3 = self.State2.P * self.PressureRatio
+        self.State3 = self.air.set(P=P3, v=self.State2.v, name="State 3")
 
-        self.State3 = self.air.set(P=self.State2.P * self.P_ratio, v=self.State2.v)
-        self.State3.name = "State 3"
+        self.State4 = self.air.set(P=P3, v=self.State3.v * self.Cutoff, name="State 4")
 
-        self.State4 = self.air.set(P=self.State3.P, v=self.State3.v * self.Cutoff)
-        self.State4.name = "State 4"
-
-        self.State5 = self.air.set(v=self.State1.v, s=self.State4.s)
-        self.State5.name = "State 5"
+        self.State5 = self.air.set(v=self.State1.v, s=self.State4.s, name="State 5 - BDC")
 
         self.W_Compression = self.State2.u - self.State1.u
-        self.W_Power = self.State4.u - self.State5.u
-        self.Q_In = (self.State3.u - self.State2.u) + (self.State4.h - self.State3.h)
+        self.W_Expansion = self.State4.u - self.State5.u
+        self.W_PressureStroke = P3 * (self.State4.v - self.State3.v)
+
+        self.Q_In = self.State3.u - self.State2.u + self.State4.h - self.State3.h
         self.Q_Out = self.State5.u - self.State1.u
-        self.W_Cycle = self.W_Power - self.W_Compression
-        self.Eff = max(0.0, min(100.0, 100.0 * self.W_Cycle / self.Q_In)) if self.Q_In != 0 else 0.0
+
+        self.W_Cycle = self.W_Expansion + self.W_PressureStroke - self.W_Compression
+        self.Eff = 100 * self.W_Cycle / self.Q_In
 
         self.upperCurve = StateDataForPlotting()
         self.lowerCurve = StateDataForPlotting()
         self.calculated = True
-        self.cycleType = 'dual'
+        self.cycleType = "dual"
+# endregion
 
-    def getSI(self):
-        return self.units.SI
-
-
-# ---------------------
-# Dual Cycle Controller
-# ---------------------
-class dualCycleController():
+# region Controller
+class dualCycleController:
     def __init__(self, model=None, ax=None):
         self.model = dualCycleModel() if model is None else model
         self.view = dualCycleView()
@@ -67,28 +63,31 @@ class dualCycleController():
         T0 = float(self.view.le_TLow.text())
         P0 = float(self.view.le_P0.text())
         V0 = float(self.view.le_V0.text())
-        CR = float(self.view.le_CR.text())
-        rc = float(self.view.le_THigh.text())  # THigh used as cutoff
-        P3overP2 = 1.5
+        PR = float(self.view.le_THigh.text())  # Using High Temp input for Pressure Ratio
+        CR = float(self.view.le_CR.text())     # CR is cutoff ratio
+        ratio = self.model.Ratio               # compression ratio
         metric = self.view.rdo_Metric.isChecked()
-        self.set(T_0=T0, P_0=P0, V_0=V0, rc=rc, P3_P2=P3overP2, ratio=CR, SI=metric)
+        self.set(T_0=T0, P_0=P0, V_0=V0, pressure_ratio=PR, cutoff=CR, ratio=ratio, SI=metric)
 
-    def set(self, T_0=300.0, P_0=100000.0, V_0=0.002, rc=1.2, P3_P2=1.5, ratio=18.0, SI=True):
+    def set(self, T_0=300.0, P_0=1e5, V_0=3e-3, pressure_ratio=1.5, cutoff=1.2, ratio=18.0, SI=True):
         self.model.units.set(SI=SI)
         self.model.T_initial = T_0 if SI else T_0 / self.model.units.CF_T
         self.model.p_initial = P_0 if SI else P_0 / self.model.units.CF_P
-        self.model.Cutoff = rc
-        self.model.P_ratio = P3_P2
         self.model.V_Cylinder = V_0 if SI else V_0 / self.model.units.CF_V
+        self.model.PressureRatio = pressure_ratio
+        self.model.Cutoff = cutoff
         self.model.Ratio = ratio
 
-        self.model.__init__(p_initial=self.model.p_initial,
-                            v_cylinder=self.model.V_Cylinder,
-                            t_initial=self.model.T_initial,
-                            pressure_ratio=self.model.P_ratio,
-                            cutoff=self.model.Cutoff,
-                            ratio=self.model.Ratio)
-        self.model.calculated = True
+        # Reconstruct model with updated parameters
+        self.model = dualCycleModel(
+            p_initial=self.model.p_initial,
+            v_cylinder=self.model.V_Cylinder,
+            t_initial=self.model.T_initial,
+            pressure_ratio=self.model.PressureRatio,
+            cutoff=self.model.Cutoff,
+            ratio=self.model.Ratio,
+        )
+
         self.buildDataForPlotting()
         self.updateView()
 
@@ -97,24 +96,38 @@ class dualCycleController():
         self.model.lowerCurve.clear()
         a = air()
 
-        for T in np.linspace(self.model.State2.T, self.model.State3.T, 30):
-            s = a.set(T=T, v=self.model.State2.v)
-            self.model.upperCurve.add((s.T, s.P, s.u, s.h, s.s, s.v))
-        for v in np.linspace(self.model.State3.v, self.model.State4.v, 30):
-            s = a.set(P=self.model.State3.P, v=v)
-            self.model.upperCurve.add((s.T, s.P, s.u, s.h, s.s, s.v))
-        for v in np.linspace(self.model.State4.v, self.model.State5.v, 30):
-            s = a.set(v=v, s=self.model.State4.s)
-            self.model.upperCurve.add((s.T, s.P, s.u, s.h, s.s, s.v))
-        for T in np.linspace(self.model.State5.T, self.model.State1.T, 30):
-            s = a.set(T=T, v=self.model.State5.v)
-            self.model.upperCurve.add((s.T, s.P, s.u, s.h, s.s, s.v))
-        for v in np.linspace(self.model.State1.v, self.model.State2.v, 30):
-            s = a.set(v=v, s=self.model.State1.s)
-            self.model.lowerCurve.add((s.T, s.P, s.u, s.h, s.s, s.v))
+        # 2-3 (v = const, P rising)
+        DeltaP = np.linspace(self.model.State2.P, self.model.State3.P, 30)
+        for P in DeltaP:
+            state = a.set(P=P, v=self.model.State2.v)
+            self.model.upperCurve.add((state.T, state.P, state.u, state.h, state.s, state.v))
 
-    def updateView(self):
-        self.view.updateView(cycle=self.model)
+        # 3-4 (P = const, v increasing)
+        DeltaV = np.linspace(self.model.State3.v, self.model.State4.v, 30)
+        for v in DeltaV:
+            state = a.set(P=self.model.State3.P, v=v)
+            self.model.upperCurve.add((state.T, state.P, state.u, state.h, state.s, state.v))
+
+        # 4-5 (s = const, v increasing)
+        DeltaV = np.linspace(self.model.State4.v, self.model.State5.v, 30)
+        for v in DeltaV:
+            state = a.set(v=v, s=self.model.State4.s)
+            self.model.upperCurve.add((state.T, state.P, state.u, state.h, state.s, state.v))
+
+        # 1-2 (s = const, v decreasing)
+        DeltaV = np.linspace(self.model.State1.v, self.model.State2.v, 30)
+        for v in DeltaV:
+            state = a.set(v=v, s=self.model.State1.s)
+            self.model.lowerCurve.add((state.T, state.P, state.u, state.h, state.s, state.v))
+
+    def plot_cycle_XY(self, X='s', Y='T', logx=False, logy=False, mass=False, total=False):
+        self.view.plot_cycle_XY(self.model, X, Y, logx, logy, mass, total)
+
+    def print_summary(self):
+        self.view.print_summary(self.model)
+
+    def get_summary(self):
+        return self.view.get_summary(self.model)
 
     def setWidgets(self, w=None):
         [self.view.lbl_THigh, self.view.lbl_TLow, self.view.lbl_P0, self.view.lbl_V0, self.view.lbl_CR,
@@ -126,11 +139,12 @@ class dualCycleController():
          self.view.rdo_Metric, self.view.cmb_Abcissa, self.view.cmb_Ordinate,
          self.view.chk_LogAbcissa, self.view.chk_LogOrdinate, self.view.ax, self.view.canvas] = w
 
+    def updateView(self):
+        self.view.updateView(self.model)
+# endregion
 
-# ---------------------
-# Dual Cycle View
-# ---------------------
-class dualCycleView():
+# region View
+class dualCycleView:
     def __init__(self):
         self.lbl_THigh = qtw.QLabel()
         self.lbl_TLow = qtw.QLabel()
@@ -167,31 +181,31 @@ class dualCycleView():
 
     def updateView(self, cycle):
         cycle.units.set(SI=self.rdo_Metric.isChecked())
+        logx = self.chk_LogAbcissa.isChecked()
+        logy = self.chk_LogOrdinate.isChecked()
+        xvar = self.cmb_Abcissa.currentText()
+        yvar = self.cmb_Ordinate.currentText()
         if cycle.calculated:
-            self.plot_cycle_XY(cycle, X=self.cmb_Abcissa.currentText(), Y=self.cmb_Ordinate.currentText(),
-                               logx=self.chk_LogAbcissa.isChecked(), logy=self.chk_LogOrdinate.isChecked(),
-                               mass=False, total=True)
+            self.plot_cycle_XY(cycle, X=xvar, Y=yvar, logx=logx, logy=logy, mass=False, total=True)
 
-    def plot_cycle_XY(self, cycle, X='v', Y='P', logx=False, logy=False, mass=False, total=False):
-        if X == Y:
-            return
-        ax = self.ax
-        ax.clear()
-        ax.set_xscale('log' if logx else 'linear')
-        ax.set_yscale('log' if logy else 'linear')
+        self.le_Efficiency.setText(f"{cycle.Eff:.2f}")
+        self.le_PowerStroke.setText(f"{cycle.W_Expansion:.2f}")
+        self.le_CompressionStroke.setText(f"{cycle.W_Compression:.2f}")
+        self.le_HeatAdded.setText(f"{cycle.Q_In:.2f}")
 
-        def get(col, curve): return [s.getVal(col) for s in curve.data]
+        self.le_T1.setText(f"{cycle.State1.T:.1f}")
+        self.le_T2.setText(f"{cycle.State2.T:.1f}")
+        self.le_T3.setText(f"{cycle.State3.T:.1f}")
+        self.le_T4.setText(f"{cycle.State4.T:.1f}")
 
-        XdataLC = get(X, cycle.lowerCurve)
-        YdataLC = get(Y, cycle.lowerCurve)
-        XdataUC = get(X, cycle.upperCurve)
-        YdataUC = get(Y, cycle.upperCurve)
-
-        ax.plot(XdataLC, YdataLC, color='k')
-        ax.plot(XdataUC, YdataUC, color='g')
-        ax.set_xlabel(X)
-        ax.set_ylabel(Y)
-        ax.set_title("Dual Cycle")
-        for state in [cycle.State1, cycle.State2, cycle.State3, cycle.State4, cycle.State5]:
-            ax.plot(state.getVal(X), state.getVal(Y), marker='o', markerfacecolor='w', markeredgecolor='k')
+    def plot_cycle_XY(self, model, X='s', Y='T', logx=False, logy=False, mass=False, total=False):
+        self.ax.clear()
+        XData = model.lowerCurve.getDataCol(X) + model.upperCurve.getDataCol(X)
+        YData = model.lowerCurve.getDataCol(Y) + model.upperCurve.getDataCol(Y)
+        self.ax.plot(XData, YData, '-ok')
+        self.ax.set_xlabel(model.lowerCurve.getAxisLabel(X))
+        self.ax.set_ylabel(model.lowerCurve.getAxisLabel(Y))
+        self.ax.set_yscale('log' if logy else 'linear')
+        self.ax.set_xscale('log' if logx else 'linear')
         self.canvas.draw()
+# endregion
