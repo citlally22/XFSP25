@@ -22,7 +22,7 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
 # Set up logging for the application
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 #region class definitions
 #region specialized graphic items
