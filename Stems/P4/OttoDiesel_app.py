@@ -5,6 +5,7 @@ import sys
 from PyQt5 import QtWidgets as qtw
 from Otto import ottoCycleController
 from Diesel import dieselCycleController
+from Dual import dualCycleController
 from Air import *
 
 #these imports are necessary for drawing a matplot lib graph on my GUI
@@ -40,6 +41,7 @@ class MainWindow(qtw.QWidget, Ui_Form):
         #create otto and diesel controller objects to work with later
         self.otto = ottoCycleController() #$JES MISSING CODE  # instantiate an ottoCycleController object
         self.diesel = dieselCycleController() #$JES MISSING CODE # instantiate a dieselCycleController object
+        self.dual = dualCycleController() #$JES MISSING CODE # instantiate a dieselCycleController object
         self.controller=self.otto
         self.someWidgets=[]
 
@@ -54,6 +56,7 @@ class MainWindow(qtw.QWidget, Ui_Form):
         #pass some widgets to the controller for both input and output
         self.otto.setWidgets(w=self.someWidgets)
         self.diesel.setWidgets(w=self.someWidgets)
+        self.dual.setWidgets(w=self.someWidgets)
 
         #show the form
         self.show()
@@ -84,9 +87,16 @@ class MainWindow(qtw.QWidget, Ui_Form):
         self.controller.updateView()
 
     def selectCycle(self):
-        otto = self.cmb_OttoDiesel.currentText().lower().find("otto")>=0 #$JES MISSING CODE # determine if otto cycle is chosen (true) or not (false -> diesel cycle)
-        self.gb_Input.setTitle('Input for Air Standard {} Cycle:'.format('Otto' if otto else 'Diesel'))
-        self.controller= self.otto if otto else self.diesel #$JES MISSING CODE  # set self.controller to self.otto or self.diesel
+        text = self.cmb_OttoDiesel.currentText().lower()
+        if "otto" in text:
+            self.controller = self.otto
+            self.gb_Input.setTitle("Input for Air Standard Otto Cycle:")
+        elif "diesel" in text:
+            self.controller = self.diesel
+            self.gb_Input.setTitle("Input for Air Standard Diesel Cycle:")
+        elif "dual" in text:
+            self.controller = self.dual
+            self.gb_Input.setTitle("Input for Air Standard Dual Cycle:")
         self.controller.updateView()
 
     def setUnits(self):
